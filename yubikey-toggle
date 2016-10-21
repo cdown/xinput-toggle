@@ -11,12 +11,35 @@ is_enabled() {
     return "$(( !enabled ))"
 }
 
+show_help() {
+    cat << EOF
+Usage: ${0##*/} [-n]
+
+Enable and disable Yubikeys.
+
+    -n          show results using notify-send in addition to stdout
+EOF
+}
+
+notify=0
+
+while getopts nh opt; do
+    case "$opt" in
+        'n') notify=1 ;;
+        'h')
+            show_help
+            exit 0
+        ;;
+        '?')
+            show_help >&2
+            exit 1
+        ;;
+    esac
+done
+
 mapfile -t yubikey_input_ids < <(
     xinput list | grep -i yubikey | sed 's/.*id=\([0-9]\+\).*/\1/'
 )
-
-notify=0
-[[ $1 == '--notify' ]] && notify=1
 
 if (( "${#yubikey_input_ids[@]}" == 0 )); then
     msg='No Yubikeys found, are they shown by xinput?'

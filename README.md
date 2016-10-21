@@ -11,11 +11,11 @@ will use it a lot.
 yubikey-toggle
 
 # Show notification indicating actions performed
-yubikey-toggle --notify
+yubikey-toggle -n
 ```
 
 ## Requirements
 
 - xinput
 - bash 4+
-- notify-send (optional, for `--notify`)
+- notify-send (optional, for `-n`)
