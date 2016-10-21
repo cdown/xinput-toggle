@@ -41,23 +41,31 @@ Enable and disable Yubikeys.
     -d          disable only, do not toggle
     -e          enable only, do not toggle
     -h          show this help page
+    -i XID      only operate on Yubikey with xinput id XID
     -n          show results using notify-send in addition to stdout
+    -t SECONDS  revert enable/disable after SECONDS seconds, ie. if you were
+                enabling, after SECONDS seconds it will be disabled again.
+                SECONDS must be an integer greater than 0
 EOF
 }
 
 notify=0
 force_enable=0
 force_disable=0
+timeout=0
+only_xid=0
 
-while getopts dehn opt; do
+while getopts dehi:nt: opt; do
     case "$opt" in
         'd') force_disable=1 ;;
         'e') force_enable=1 ;;
         'n') notify=1 ;;
+        'n') only_xid="$OPTARG" ;;
         'h')
             show_help
             exit 0
         ;;
+        't') timeout="$OPTARG" ;;
         '?')
             show_help >&2
             exit 1
@@ -65,10 +73,17 @@ while getopts dehn opt; do
     esac
 done
 
+args_without_timeout_or_force=( "${@/-t}" )
+args_without_timeout_or_force=( "${args_without_timeout_or_force[@]/-d}" )
+args_without_timeout_or_force=( "${args_without_timeout_or_force[@]/-e}" )
 
-mapfile -t yubikey_input_ids < <(
-    xinput list | grep -i yubikey | sed 's/.*id=\([0-9]\+\).*/\1/'
-)
+if (( only_xid )); then
+    yubikey_input_ids=( "$only_xid" )
+else
+    mapfile -t yubikey_input_ids < <(
+        xinput list | grep -i yubikey | sed 's/.*id=\([0-9]\+\).*/\1/'
+    )
+fi
 
 if (( "${#yubikey_input_ids[@]}" == 0 )); then
     msg='No Yubikeys found, are they shown by xinput?'
@@ -81,8 +96,19 @@ for id in "${yubikey_input_ids[@]}"; do
     if should_disable "$id" "$force_enable" "$force_disable"; then
         xinput -disable "$id"
         (( notify )) && notify-send "Disabled Yubikey with id $id"
+        if (( timeout )); then
+            sleep "$timeout"
+            "$0" "${args_without_timeout_or_force[@]}" -e -i "$id"
+        fi
     else
         xinput -enable "$id"
         (( notify )) && notify-send "Enabled Yubikey with id $id"
+        if (( timeout )); then
+            sleep "$timeout"
+            "$0" "${args_without_timeout_or_force[@]}" -d -i "$id"
+        fi
     fi
 done
+
+# We may have queued some timeout reversion jobs
+wait
