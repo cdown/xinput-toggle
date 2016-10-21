@@ -1,5 +1,12 @@
 #!/bin/bash
 
+debug() {
+    # DEBUG comes from the environment
+    if (( DEBUG )); then
+        printf '%s\n' "$@" >&2
+    fi
+}
+
 is_enabled() {
     local id="${1?}"
     enabled=$(
@@ -32,16 +39,22 @@ should_disable() {
     fi
 }
 
+get_id_for_device_name() {
+    local name="${1?}"
+    xinput list "$name" | sed -n 's/.*id=\([0-9]\+\).*/\1/p'
+}
+
 show_help() {
     cat << EOF
 Usage: ${0##*/} [-n]
 
-Enable and disable Yubikeys.
+Enable and disable xinput devices.
 
     -d          disable only, do not toggle
     -e          enable only, do not toggle
     -h          show this help page
-    -i XID      only operate on Yubikey with xinput id XID
+    -i XID      only operate on device with xinput id XID
+    -r REGEX    only operate on devices matching name REGEX
     -n          show results using notify-send in addition to stdout
     -t SECONDS  revert enable/disable after SECONDS seconds, ie. if you were
                 enabling, after SECONDS seconds it will be disabled again.
@@ -54,17 +67,19 @@ force_enable=0
 force_disable=0
 timeout=0
 only_xid=0
+input_ids=()
 
-while getopts dehi:nt: opt; do
+while getopts dehi:nr:t: opt; do
     case "$opt" in
         'd') force_disable=1 ;;
         'e') force_enable=1 ;;
         'n') notify=1 ;;
-        'n') only_xid="$OPTARG" ;;
+        'i') only_xid="$OPTARG" ;;
         'h')
             show_help
             exit 0
         ;;
+        'r') regex="$OPTARG" ;;
         't') timeout="$OPTARG" ;;
         '?')
             show_help >&2
@@ -73,36 +88,53 @@ while getopts dehi:nt: opt; do
     esac
 done
 
+if (( only_xid )) && [[ "$regex" ]]; then
+    echo '-r and -i cannot be currently used together' >&2
+    exit 4
+elif ! (( only_xid )) && ! [[ "$regex" ]]; then
+    echo 'either -r or -i must be passed to filter devices' >&2
+    exit 5
+fi
+
 args_without_timeout_or_force=( "${@/-t}" )
 args_without_timeout_or_force=( "${args_without_timeout_or_force[@]/-d}" )
 args_without_timeout_or_force=( "${args_without_timeout_or_force[@]/-e}" )
 
 if (( only_xid )); then
-    yubikey_input_ids=( "$only_xid" )
+    input_ids=( "$only_xid" )
 else
-    mapfile -t yubikey_input_ids < <(
-        xinput list | grep -i yubikey | sed 's/.*id=\([0-9]\+\).*/\1/'
+    mapfile -t matched_device_names < <(
+        xinput list |
+            sed -n 's/.*↳ \(.\+\)id=.*\[slave.*/\1/p' |
+            sed 's/[\t ]*$//' |
+            grep -- "$regex"
     )
+
+    debug 'Matched device names:' "${matched_device_names[@]}"
+
+    for name in "${matched_device_names[@]}"; do
+        input_ids+=( "$(get_id_for_device_name "$name")" )
+    done
 fi
 
-if (( "${#yubikey_input_ids[@]}" == 0 )); then
-    msg='No Yubikeys found, are they shown by xinput?'
+if (( "${#input_ids[@]}" == 0 )); then
+    msg='No matching devices found'
     echo "$msg" >&2
     (( notify )) && notify-send "$msg"
     exit 2
 fi
 
-for id in "${yubikey_input_ids[@]}"; do
+for id in "${input_ids[@]}"; do
     if should_disable "$id" "$force_enable" "$force_disable"; then
         xinput -disable "$id"
-        (( notify )) && notify-send "Disabled Yubikey with id $id"
+        (( notify )) && notify-send "Disabled device with id $id"
         if (( timeout )); then
             sleep "$timeout"
             "$0" "${args_without_timeout_or_force[@]}" -e -i "$id"
         fi
     else
         xinput -enable "$id"
-        (( notify )) && notify-send "Enabled Yubikey with id $id"
+        (( notify )) && notify-send "Enabled device with id $id"
         if (( timeout )); then
             sleep "$timeout"
             "$0" "${args_without_timeout_or_force[@]}" -d -i "$id"
