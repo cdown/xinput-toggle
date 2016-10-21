@@ -152,7 +152,7 @@ else
         xinput list |
             sed -n 's/.*↳ \(.\+\)id=.*\[slave.*/\1/p' |
             sed 's/[\t ]*$//' |
-            grep -- "$regex"
+            grep -i -- "$regex"
     )
 
     debug 'Matched device names:' "${matched_device_names[@]}"
