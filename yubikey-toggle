@@ -63,6 +63,36 @@ Enable and disable xinput devices.
 EOF
 }
 
+act_on_device() {
+    local print="${1?}"
+    local notify="${2?}"
+    local timeout="${3?}"
+    local xinput_action="${4?}"
+    local our_next_flag="${5?}"
+    local id="${6?}"
+
+    if (( print )); then
+        echo "Would $xinput_action device with id $id"
+    else
+        xinput -"$xinput_action" "$id"
+
+        if (( notify )); then
+            notify-send "${xinput_action^}d device with id $id"
+        fi
+
+        if (( timeout )); then
+            debug "Added timeout $timeout"
+            {
+                sleep "$timeout"
+                # TODO: Make args_without_timeour_or_force non-global (sigh,
+                # shell makes this difficult due to pass by value)
+                "$0" "${args_without_timeout_or_force[@]}" \
+                    "$our_next_flag" -i "$id"
+            } &
+        fi
+    fi
+}
+
 notify=0
 force_enable=0
 force_disable=0
@@ -70,8 +100,24 @@ timeout=0
 print=0
 only_xid=0
 input_ids=()
+args_without_timeout_or_force=()
 
 while getopts dehi:npr:t: opt; do
+    # We need to get a list of args without timeout/force for when we execute
+    # timeout reversions. This is a blacklist of things we should not put in
+    # the array, since they force enable/disable/name or do the timeout itself.
+    case "$opt" in
+        d|e|t|r)
+            :  # Blacklisted
+        ;;
+        *)
+            args_without_timeout_or_force+=( -"$opt" )
+            if [[ $OPTARG ]]; then
+                args_without_timeout_or_force+=( "$OPTARG" )
+            fi
+        ;;
+    esac
+
     case "$opt" in
         'd') force_disable=1 ;;
         'e') force_enable=1 ;;
@@ -99,10 +145,6 @@ elif ! (( only_xid )) && ! [[ "$regex" ]]; then
     exit 5
 fi
 
-args_without_timeout_or_force=( "${@/-t}" )
-args_without_timeout_or_force=( "${args_without_timeout_or_force[@]/-d}" )
-args_without_timeout_or_force=( "${args_without_timeout_or_force[@]/-e}" )
-
 if (( only_xid )); then
     input_ids=( "$only_xid" )
 else
@@ -128,29 +170,10 @@ if (( "${#input_ids[@]}" == 0 )); then
 fi
 
 for id in "${input_ids[@]}"; do
-    ## TODO: Deduplicate the disable/enable logic
     if should_disable "$id" "$force_enable" "$force_disable"; then
-        if (( print )); then
-            echo "Would disable device with id $id"
-        else
-            xinput -disable "$id"
-            (( notify )) && notify-send "Disabled device with id $id"
-            if (( timeout )); then
-                sleep "$timeout"
-                "$0" "${args_without_timeout_or_force[@]}" -e -i "$id"
-            fi
-        fi
+        act_on_device "$print" "$notify" "$timeout" disable -e "$id"
     else
-        if (( print )); then
-            echo "Would enable device with id $id"
-        else
-            xinput -enable "$id"
-            (( notify )) && notify-send "Enabled device with id $id"
-            if (( timeout )); then
-                sleep "$timeout"
-                "$0" "${args_without_timeout_or_force[@]}" -d -i "$id"
-            fi
-        fi
+        act_on_device "$print" "$notify" "$timeout" enable -d "$id"
     fi
 done
 
