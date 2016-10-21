@@ -56,6 +56,7 @@ Enable and disable xinput devices.
     -i XID      only operate on device with xinput id XID
     -r REGEX    only operate on devices matching name REGEX
     -n          show results using notify-send in addition to stdout
+    -p          print what we would do, but don't actually do it
     -t SECONDS  revert enable/disable after SECONDS seconds, ie. if you were
                 enabling, after SECONDS seconds it will be disabled again.
                 SECONDS must be an integer greater than 0
@@ -66,10 +67,11 @@ notify=0
 force_enable=0
 force_disable=0
 timeout=0
+print=0
 only_xid=0
 input_ids=()
 
-while getopts dehi:nr:t: opt; do
+while getopts dehi:npr:t: opt; do
     case "$opt" in
         'd') force_disable=1 ;;
         'e') force_enable=1 ;;
@@ -79,6 +81,7 @@ while getopts dehi:nr:t: opt; do
             show_help
             exit 0
         ;;
+        'p') print=1 ;;
         'r') regex="$OPTARG" ;;
         't') timeout="$OPTARG" ;;
         '?')
@@ -125,19 +128,28 @@ if (( "${#input_ids[@]}" == 0 )); then
 fi
 
 for id in "${input_ids[@]}"; do
+    ## TODO: Deduplicate the disable/enable logic
     if should_disable "$id" "$force_enable" "$force_disable"; then
-        xinput -disable "$id"
-        (( notify )) && notify-send "Disabled device with id $id"
-        if (( timeout )); then
-            sleep "$timeout"
-            "$0" "${args_without_timeout_or_force[@]}" -e -i "$id"
+        if (( print )); then
+            echo "Would disable device with id $id"
+        else
+            xinput -disable "$id"
+            (( notify )) && notify-send "Disabled device with id $id"
+            if (( timeout )); then
+                sleep "$timeout"
+                "$0" "${args_without_timeout_or_force[@]}" -e -i "$id"
+            fi
         fi
     else
-        xinput -enable "$id"
-        (( notify )) && notify-send "Enabled device with id $id"
-        if (( timeout )); then
-            sleep "$timeout"
-            "$0" "${args_without_timeout_or_force[@]}" -d -i "$id"
+        if (( print )); then
+            echo "Would enable device with id $id"
+        else
+            xinput -enable "$id"
+            (( notify )) && notify-send "Enabled device with id $id"
+            if (( timeout )); then
+                sleep "$timeout"
+                "$0" "${args_without_timeout_or_force[@]}" -d -i "$id"
+            fi
         fi
     fi
 done
