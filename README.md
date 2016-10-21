@@ -12,6 +12,12 @@ yubikey-toggle
 
 # Show notification indicating actions performed
 yubikey-toggle -n
+
+# Disable yubikey (no toggle)
+yubikey-toggle -d
+
+# Enable yubikey (no toggle)
+yubikey-toggle -e
 ```
 
 ## Requirements

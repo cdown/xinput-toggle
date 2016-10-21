@@ -11,20 +11,48 @@ is_enabled() {
     return "$(( !enabled ))"
 }
 
+should_disable() {
+    local id="${1?}"
+    local force_enable="${2?}"
+    local force_disable="${3?}"
+
+    if (( force_enable )) && (( force_disable )); then
+        echo '-d and -e make no sense together' >&2
+        exit 3
+    fi
+
+    if (( force_enable )); then
+        return 1
+    elif (( force_disable )); then
+        return 0
+    elif is_enabled "$id"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 show_help() {
     cat << EOF
 Usage: ${0##*/} [-n]
 
 Enable and disable Yubikeys.
 
+    -d          disable only, do not toggle
+    -e          enable only, do not toggle
+    -h          show this help page
     -n          show results using notify-send in addition to stdout
 EOF
 }
 
 notify=0
+force_enable=0
+force_disable=0
 
-while getopts nh opt; do
+while getopts dehn opt; do
     case "$opt" in
+        'd') force_disable=1 ;;
+        'e') force_enable=1 ;;
         'n') notify=1 ;;
         'h')
             show_help
@@ -36,6 +64,7 @@ while getopts nh opt; do
         ;;
     esac
 done
+
 
 mapfile -t yubikey_input_ids < <(
     xinput list | grep -i yubikey | sed 's/.*id=\([0-9]\+\).*/\1/'
@@ -49,7 +78,7 @@ if (( "${#yubikey_input_ids[@]}" == 0 )); then
 fi
 
 for id in "${yubikey_input_ids[@]}"; do
-    if is_enabled "$id"; then
+    if should_disable "$id" "$force_enable" "$force_disable"; then
         xinput -disable "$id"
         (( notify )) && notify-send "Disabled Yubikey with id $id"
     else
