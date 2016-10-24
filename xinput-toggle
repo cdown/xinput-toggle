@@ -74,7 +74,11 @@ act_on_device() {
     if (( print )); then
         echo "Would $xinput_action device with id $id"
     else
-        xinput -"$xinput_action" "$id"
+        if ! msg="$(xinput -"$xinput_action" "$id" 2>&1)"; then
+            printf '%s\n' "$msg" >&2
+            notify-send "$msg"
+            exit 6
+        fi
 
         if (( notify )); then
             notify-send "${xinput_action^}d device with id $id"
