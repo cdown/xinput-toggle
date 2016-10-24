@@ -163,7 +163,11 @@ else
 fi
 
 if (( "${#input_ids[@]}" == 0 )); then
-    msg='No matching devices found'
+    msg='No matching devices found (filters:'
+    (( only_xid )) && msg+=" id=$only_xid"
+    [[ $regex ]] && msg+=" regex=$regex"
+    msg+=')'
+
     echo "$msg" >&2
     (( notify )) && notify-send "$msg"
     exit 2
