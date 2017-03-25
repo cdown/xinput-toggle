@@ -34,4 +34,4 @@ xinput-toggle -r yubikey -e -t 5
 
 - xinput
 - bash 4+
-- notify-send (optional, for `-n`)
+- notify-send (optional, for `-n`, aka libnotify)
