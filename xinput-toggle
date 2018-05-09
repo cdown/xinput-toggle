@@ -54,9 +54,9 @@ Enable and disable xinput devices.
     -e          enable only, do not toggle
     -h          show this help page
     -i XID      only operate on device with xinput id XID
-    -r REGEX    only operate on devices matching name REGEX
     -n          show results using notify-send in addition to stdout
     -p          print what we would do, but don't actually do it
+    -r REGEX    only operate on devices matching name REGEX
     -t SECONDS  revert enable/disable after SECONDS seconds, ie. if you were
                 enabling, after SECONDS seconds it will be disabled again.
                 SECONDS must be an integer greater than 0
