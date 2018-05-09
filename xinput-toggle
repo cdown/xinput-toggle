@@ -57,6 +57,7 @@ Enable and disable xinput devices.
     -n          show results using notify-send in addition to stdout
     -p          print what we would do, but don't actually do it
     -r REGEX    only operate on devices matching name REGEX
+    -s          exit with status 0 on no match (by default, status 2 is used)
     -t SECONDS  revert enable/disable after SECONDS seconds, ie. if you were
                 enabling, after SECONDS seconds it will be disabled again.
                 SECONDS must be an integer greater than 0
@@ -103,10 +104,11 @@ force_disable=0
 timeout=0
 print=0
 only_xid=0
+fail_on_no_match=1
 input_ids=()
 args_without_timeout_or_force=()
 
-while getopts dehi:npr:t: opt; do
+while getopts dehi:npr:t:s opt; do
     # We need to get a list of args without timeout/force for when we execute
     # timeout reversions. This is a blacklist of things we should not put in
     # the array, since they force enable/disable/name or do the timeout itself.
@@ -133,6 +135,7 @@ while getopts dehi:npr:t: opt; do
         ;;
         'p') print=1 ;;
         'r') regex="$OPTARG" ;;
+        's') fail_on_no_match=0 ;;
         't') timeout="$OPTARG" ;;
         '?')
             show_help >&2
@@ -174,7 +177,11 @@ if (( "${#input_ids[@]}" == 0 )); then
 
     echo "$msg" >&2
     (( notify )) && notify-send "$msg"
-    exit 2
+    if (( fail_on_no_match )); then
+        exit 2
+    else
+        exit 0
+    fi
 fi
 
 for id in "${input_ids[@]}"; do
