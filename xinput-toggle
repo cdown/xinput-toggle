@@ -157,7 +157,7 @@ if (( only_xid )); then
 else
     mapfile -t matched_device_names < <(
         xinput list |
-            sed -n 's/.*↳ \(.\+\)id=.*\[slave.*/\1/p' |
+            sed -n 's/.*[↳∼] \(.*\)id=.*\[.*slave.*/\1/p' |
             sed 's/[\t ]*$//' |
             grep -i -- "$regex"
     )
